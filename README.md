@@ -31,6 +31,8 @@ go build -o auto_issues .
 
 # 指定工作目录
 ./auto_issues -workdir /path/to/project
+# 自定义 AI prompt
+./auto_issues -prompt "你的自定义指令"
 ```
 
 ## 配置
@@ -41,6 +43,7 @@ go build -o auto_issues .
 |------|------|--------|
 | `-interval` | 执行间隔 | 30m |
 | `-workdir` | Agent 工作目录 | 当前程序执行目录 |
+| `-prompt` | 自定义 AI prompt | - |
 | `AMP_URL` | Amp 服务地址 | http://localhost:8317 |
 | `AMP_API_KEY` | Amp API Key | your-api-key-1 |
 

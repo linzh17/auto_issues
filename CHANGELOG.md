@@ -10,3 +10,12 @@
 ### Issue #7: 更新 README.md 文档
 - 更新 README.md，添加 `-workdir` 参数说明
 - 添加 Changelog 章节引用
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased] - 2026-04-06
+
+### Added
+- SKILL.md 工作流程新增 changelog 更新要求：每次代码改动必须更新对应项目的 changelog
