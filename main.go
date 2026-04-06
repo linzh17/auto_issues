@@ -118,7 +118,7 @@ func installSkill(installDir string) {
 
 	// 技能源目录（相对于可执行文件或工作目录）
 	sourceSkillDir := filepath.Join(filepath.Dir(exePath), skillBaseDir, skillName)
-	
+
 	// 如果源目录不存在，尝试相对于工作目录
 	if _, err := os.Stat(sourceSkillDir); os.IsNotExist(err) {
 		sourceSkillDir = filepath.Join("skills", skillName)
