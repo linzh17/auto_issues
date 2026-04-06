@@ -1,0 +1,14 @@
+# GitHub 配置（如需使用）
+github:
+  enabled: false
+  token: "${GH_TOKEN}"
+  repositories:
+    - "owner/repo1"
+
+# GitLab/JiHuLab 配置
+gitlab:
+  enabled: true
+  token: "W7jNGU51Sa7f37IBGoPNl286MQp1OjUwbGUK.01.1016ttlld"
+  base_url: "https://jihulab.com"  # 或 https://gitlab.com
+  repositories:
+    - "linzh17-group/linzh17-project"

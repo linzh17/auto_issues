@@ -1,0 +1,23 @@
+# GitHub 配置
+github:
+  enabled: false
+  token: "${GH_TOKEN}"
+  repositories:
+    - "owner/repo1"
+
+# GitLab 配置
+# 支持任意 GitLab 兼容实例（官方、极狐、自建等）
+gitlab:
+  enabled: true
+  token: "${GITLAB_TOKEN}"
+  
+  # GitLab 实例 URL（必须与 repositories 匹配）
+  # 常用示例：
+  #   - https://gitlab.com      (GitLab 官方)
+  #   - https://jihulab.com      (极狐GitLab)
+  #   - https://git.company.com  (自建 GitLab)
+  base_url: "https://your-gitlab-host.com"
+  
+  repositories:
+    - "group/project1"
+    - "namespace/project2"
