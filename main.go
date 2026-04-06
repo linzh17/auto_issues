@@ -10,10 +10,11 @@ import (
 
 func main() {
 	interval := flag.Duration("interval", 30*time.Minute, "执行间隔，如 30s, 30m, 30h")
+	prompt := flag.String("prompt", "在 jihulab 上处理 linzh17-group/linzh17-project 的 open issues", "传递给 amp 的 prompt")
 	flag.Parse()
 
 	// 首次执行
-	runTask()
+	runTask(*prompt)
 
 	// 定时执行
 	ticker := time.NewTicker(*interval)
@@ -22,17 +23,17 @@ func main() {
 	fmt.Printf("[%s] 定时任务已启动，每 %s 执行一次\n", time.Now().Format("2006-01-02 15:04:05"), *interval)
 
 	for range ticker.C {
-		runTask()
+		runTask(*prompt)
 	}
 }
 
 var execCommand = exec.Command
 
-func runTask() {
+func runTask(prompt string) {
 	fmt.Printf("[%s] 开始执行任务...\n", time.Now().Format("2006-01-02 15:04:05"))
 
 	cmd := execCommand("amp", "-x",
-		"在 jihulab 上处理 linzh17-group/linzh17-project 的 open issues",
+		prompt,
 		"--dangerously-allow-all")
 
 	// 设置环境变量
