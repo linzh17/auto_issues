@@ -157,7 +157,22 @@ git commit -m "Fix issue #{number}: {title}"
 git push -u origin fix/issue-{number}
 ```
 
-5. **创建 MR/PR**
+5. **更新 Changelog**
+
+每次代码改动必须更新对应项目的 changelog：
+- 如果项目没有 changelog，则新建 `CHANGELOG.md`
+- 如果已有 changelog，则追加新条目到顶部
+
+```markdown
+## [Unreleased] - {日期}
+
+### Added/Changed/Fixed
+- 描述本次改动内容
+```
+
+6. **创建 MR/PR**
+
+**注意：** 提交代码改动和 changelog 更新后，再创建 MR/PR。
 
 **GitHub:**
 ```bash
@@ -175,7 +190,7 @@ glab mr create --repo group/project \
   --target-branch main
 ```
 
-6. **评论通知**
+7. **评论通知**
 ```bash
 gh issue comment create {number} --repo owner/repo --body "已创建 PR: {url}"
 glab issue note {iid} --repo group/project --message "已创建 MR: {url}"
