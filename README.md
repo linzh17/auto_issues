@@ -22,13 +22,15 @@ go build -o auto_issues .
 ## 使用方法
 
 ```bash
-# 默认每 30 分钟执行一次
+# 默认每 30 分钟执行一次，使用当前目录作为工作目录
 ./auto_issues
 
 # 自定义执行间隔
 ./auto_issues -interval 1h
 ./auto_issues -interval 10m
 
+# 指定工作目录
+./auto_issues -workdir /path/to/project
 # 自定义 AI prompt
 ./auto_issues -prompt "你的自定义指令"
 ```
@@ -40,10 +42,10 @@ go build -o auto_issues .
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `-interval` | 执行间隔 | 30m |
+| `-workdir` | Agent 工作目录 | 当前程序执行目录 |
 | `-prompt` | 自定义 AI prompt | - |
 | `AMP_URL` | Amp 服务地址 | http://localhost:8317 |
 | `AMP_API_KEY` | Amp API Key | your-api-key-1 |
-| `cmd.Dir` | Agent 工作目录 | /Users/lzh17/Projects/... |
 
 ## 项目结构
 
@@ -64,3 +66,7 @@ go build -o auto_issues .
 ## License
 
 MIT
+
+## Changelog
+
+查看 [CHANGELOG.md](./CHANGELOG.md) 了解详细的更新历史。
