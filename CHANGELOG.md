@@ -37,3 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 使用带缓冲的 channel 作为信号量实现并发控制
 - 定时触发时启动异步协程执行任务，主协程直接返回继续调度
 - 使用 sync.WaitGroup 确保程序退出前所有任务完成
+
+## 2026-04-06 - Issue #15
+
+### Feature: 拓展支持的 Coding Agent CLI 客户端
+- 新增 `-agent` 命令行参数，支持选择不同的 coding agent CLI
+- 支持 amp (默认)、claude (Claude Code)、cursor (Cursor Agent)
+- 引入 AgentCLI 接口，便于扩展更多 agent 支持
+- 更新 README.md 文档，添加新参数说明和依赖列表

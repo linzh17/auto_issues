@@ -17,13 +17,63 @@ var (
 	skillBaseDir = "skills"
 )
 
+// AgentCLI defines the interface for different coding agent CLI tools
+type AgentCLI interface {
+	Name() string
+	Command(prompt string) *exec.Cmd
+}
+
+// AmpCLI implements AgentCLI for Amp
+type AmpCLI struct{}
+
+func (a AmpCLI) Name() string { return "amp" }
+
+func (a AmpCLI) Command(prompt string) *exec.Cmd {
+	cmd := exec.Command("amp", "-x", prompt, "--dangerously-allow-all")
+	cmd.Env = append(os.Environ(), "AMP_URL=http://localhost:8317", "AMP_API_KEY=your-api-key-1")
+	return cmd
+}
+
+// ClaudeCodeCLI implements AgentCLI for Claude Code
+type ClaudeCodeCLI struct{}
+
+func (c ClaudeCodeCLI) Name() string { return "claude" }
+
+func (c ClaudeCodeCLI) Command(prompt string) *exec.Cmd {
+	cmd := exec.Command("claude", prompt)
+	return cmd
+}
+
+// CursorAgentCLI implements AgentCLI for Cursor Agent
+type CursorAgentCLI struct{}
+
+func (c CursorAgentCLI) Name() string { return "cursor-agent" }
+
+func (c CursorAgentCLI) Command(prompt string) *exec.Cmd {
+	cmd := exec.Command("cursor-agent", prompt)
+	return cmd
+}
+
+// GetAgentCLI returns the AgentCLI implementation based on the agent name
+func GetAgentCLI(agent string) AgentCLI {
+	switch agent {
+	case "claude":
+		return ClaudeCodeCLI{}
+	case "cursor", "cursor-agent":
+		return CursorAgentCLI{}
+	default:
+		return AmpCLI{}
+	}
+}
+
 func main() {
 	interval := flag.Duration("interval", 30*time.Minute, "执行间隔，如 30s, 30m, 30h")
-	prompt := flag.String("prompt", "在 jihulab 上处理 linzh17-group/linzh17-project 的 open issues", "传递给 amp 的 prompt")
+	prompt := flag.String("prompt", "在 jihulab 上处理 linzh17-group/linzh17-project 的 open issues", "传递给 agent 的 prompt")
 	workDir := flag.String("workdir", "", "工作目录，默认为当前程序执行目录")
 	maxConcurrency := flag.Int("concurrency", 5, "最大并发任务数")
 	autoInstall := flag.Bool("auto-install", false, "自动安装技能到 Amp 技能目录（无需询问）")
 	installPath := flag.String("install-path", "", "指定技能安装路径（默认 ~/.config/agents/skills/）")
+	agent := flag.String("agent", "amp", "使用的 coding agent CLI (amp/claude/cursor)")
 	flag.Parse()
 
 	// 检查并提示安装技能（仅首次运行时）
@@ -33,8 +83,12 @@ func main() {
 	semaphore := make(chan struct{}, *maxConcurrency)
 	var wg sync.WaitGroup
 
+	// 选择 agent
+	agentCLI := GetAgentCLI(*agent)
+	fmt.Printf("[%s] 使用 agent: %s\n", time.Now().Format("2006-01-02 15:04:05"), agentCLI.Name())
+
 	// 首次执行
-	runTaskAsync(&wg, semaphore, *prompt, *workDir)
+	runTaskAsync(&wg, semaphore, *prompt, *workDir, agentCLI)
 
 	// 定时执行
 	ticker := time.NewTicker(*interval)
@@ -43,7 +97,7 @@ func main() {
 	fmt.Printf("[%s] 定时任务已启动，每 %s 执行一次，最大并发数: %d\n", time.Now().Format("2006-01-02 15:04:05"), *interval, *maxConcurrency)
 
 	for range ticker.C {
-		runTaskAsync(&wg, semaphore, *prompt, *workDir)
+		runTaskAsync(&wg, semaphore, *prompt, *workDir, agentCLI)
 	}
 
 	// 等待所有任务完成
@@ -188,7 +242,7 @@ func copyFile(src, dst string) error {
 
 var execCommand = exec.Command
 
-func runTaskAsync(wg *sync.WaitGroup, semaphore chan struct{}, prompt string, workDir string) {
+func runTaskAsync(wg *sync.WaitGroup, semaphore chan struct{}, prompt string, workDir string, agentCLI AgentCLI) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -197,22 +251,14 @@ func runTaskAsync(wg *sync.WaitGroup, semaphore chan struct{}, prompt string, wo
 		semaphore <- struct{}{}
 		defer func() { <-semaphore }()
 
-		executeTask(prompt, workDir)
+		executeTask(prompt, workDir, agentCLI)
 	}()
 }
 
-func executeTask(prompt string, workDir string) {
-	fmt.Printf("[%s] 开始执行任务...\n", time.Now().Format("2006-01-02 15:04:05"))
+func executeTask(prompt string, workDir string, agentCLI AgentCLI) {
+	fmt.Printf("[%s] 开始执行任务 (使用 %s)...\n", time.Now().Format("2006-01-02 15:04:05"), agentCLI.Name())
 
-	cmd := execCommand("amp", "-x",
-		prompt,
-		"--dangerously-allow-all")
-
-	// 设置环境变量
-	cmd.Env = append(os.Environ(),
-		"AMP_URL=http://localhost:8317",
-		"AMP_API_KEY=your-api-key-1",
-	)
+	cmd := agentCLI.Command(prompt)
 
 	// 设置工作目录：如果未指定，则使用当前程序执行目录
 	if workDir != "" {

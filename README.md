@@ -10,6 +10,7 @@
 - 💻 **代码实现** — 对于需要代码修复的 issue，Agent 自动克隆仓库、创建分支、实现功能并提交 MR
 - 🔧 **灵活配置** — 通过命令行参数轻松配置执行间隔和并发数
 - 📦 **自动安装技能** — 首次运行时自动检测并安装 Agent 技能
+- 🛠️ **多 Agent 支持** — 支持 Amp、Claude Code、Cursor Agent 等多种 CLI
 
 ## 安装
 
@@ -44,7 +45,19 @@ go build -o auto_issues .
 
 # 指定技能安装路径
 ./auto_issues -install-path ~/.config/amp/skills/
+
+# 指定使用的 coding agent CLI（默认 amp，可选 claude/cursor）
+./auto_issues -agent claude
+./auto_issues -agent cursor
 ```
+
+## 支持的 Coding Agent CLI
+
+| Agent | 命令 | 说明 |
+|-------|------|------|
+| amp | `-agent amp` | [Amp CLI](https://ampcode.com)，默认 |
+| claude | `-agent claude` | [Claude Code](https://code.claude.com) |
+| cursor | `-agent cursor` | [Cursor Agent](https://cursor.com/docs/cli/overview) |
 
 ## 配置
 
@@ -58,6 +71,7 @@ go build -o auto_issues .
 | `-concurrency` | 最大并发任务数 | 5 |
 | `-auto-install` | 自动安装技能（无需询问） | false |
 | `-install-path` | 指定技能安装路径 | ~/.config/agents/skills/ |
+| `-agent` | Coding Agent CLI | amp |
 | `AMP_URL` | Amp 服务地址 | http://localhost:8317 |
 | `AMP_API_KEY` | Amp API Key | your-api-key-1 |
 
@@ -75,7 +89,10 @@ go build -o auto_issues .
 ## 依赖
 
 - Go 1.21+
-- [Amp CLI](https://ampcode.com)
+- 至少安装以下其中一个 coding agent CLI：
+  - [Amp CLI](https://ampcode.com)
+  - [Claude Code](https://code.claude.com)
+  - [Cursor Agent](https://cursor.com/docs/cli/overview)
 
 ## License
 
