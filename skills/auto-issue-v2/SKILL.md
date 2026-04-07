@@ -1,19 +1,48 @@
 ---
 name: auto-issue-v2
-description: "Automatically processes GitHub/GitLab issues: classifies with labels, generates AI replies, creates code implementations, and submits MRs. Use when asked to auto-manage issues, patrol issues, or handle GitHub/GitLab issue workflows."
+description: "Auto processes GitHub/GitLab issues: classify → AI reply → code → PR. Also resolves PR conflicts. Trigger: 处理issue, 扫描冲突."
 ---
 
 # Auto Issue Agent v2
 
-Automatically processes GitHub and GitLab issues using AI analysis.
+自动处理 GitHub/GitLab issues 和 PR/MR 冲突。
 
-## Workflow
+## CLI 优先级
 
-当用户说 "处理 issue" 或 "start issue patrol" 时，执行以下流程：
+| 平台 | 优先使用 | 备选 | 仅限 git |
+|------|---------|------|----------|
+| GitHub | `gh` | API | 克隆、提交、分支 |
+| GitLab | `glab` | API | 克隆、提交、分支 |
+
+---
+
+## 模式一：处理 Issue
+
+触发词：`处理issue`
+
+### 流程概览
+
+```
+获取 open issues
+    ↓
+遍历每个 issue
+    ↓
+检查是否有对应 MR
+    ├── 有 MR → 检查冲突
+    │           ├── 有冲突 → 调用冲突解决流程
+    │           └── 无冲突 → 跳过
+    │
+    └── 无 MR → 正常处理
+                ├── 1. 分析 + 打标签
+                ├── 2. AI 回复
+                ├── 3. 代码实现（如需要）
+                ├── 4. 创建 MR/PR
+                └── 5. 标记 + 记录
+```
 
 ### Step 1: 配置检查
 
-读取配置文件 `~/.config/agents/skills/auto-issue-v2/config.yaml`：
+读取 `~/.config/agents/skills/auto-issue-v2/config.yaml`：
 
 ```yaml
 github:
@@ -25,63 +54,59 @@ github:
 gitlab:
   enabled: true
   token: "${GITLAB_TOKEN}"
-  base_url: "https://{your-gitlab-host}.com"  # 替换为实际实例
+  base_url: "https://gitlab.com"
   repositories:
     - "group/project1"
 ```
 
-**常用 GitLab 实例：**
-| 实例 | base_url |
-|------|----------|
-| GitLab 官方 | `https://gitlab.com` |
-| 极狐GitLab | `https://jihulab.com` |
-| 自定义私有 | `https://git.yourcompany.com` |
+### Step 2: 获取 Open Issues
 
-### Step 2: 获取 Issues
-
-**GitHub:**
 ```bash
+# GitHub
 gh issue list --repo owner/repo --state open --json number,title,body,labels
-```
 
-**GitLab (通用):**
-```bash
+# GitLab
 glab issue list --repo group/project --opened
-# 或使用 API
-curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "${GITLAB_BASE_URL}/api/v4/projects/$(echo group/project | sed 's/\//%2F/g')/issues?state=opened"
 ```
 
-### Step 3: 处理每个 Issue
+### Step 3: 检查 MR 状态
 
-对每个新/未处理的 issue，执行：
+```bash
+# GitHub - 获取 issue 关联的 PR
+gh pr list --repo owner/repo --head "owner:fix/issue-{number}" --json number,mergeableState
 
-#### 3.1 分析 Issue 内容
+# GitLab - 获取 issue 关联的 MR
+glab mr list --repo group/project --search "issue-{number}"
+```
 
-读取 issue 的 title、body、description，判断：
+**判断逻辑：**
+- 有对应 MR → 检查 `mergeableState` 或 `merge_status`
+- 无对应 MR → 进入正常处理流程
+
+### Step 4: 冲突解决（仅当有冲突时）
+
+调用下方「模式二：扫描冲突」流程。
+
+### Step 5: 正常处理（无 MR 或 MR 无冲突）
+
+#### 5.1 分析 Issue
+
 - 问题类型：bug / feature / question / documentation
 - 是否需要代码实现
 - 优先级
 
-#### 3.2 添加标签
+#### 5.2 打标签
 
-**GitHub:**
 ```bash
+# GitHub
 gh issue edit {number} --repo owner/repo --add-label "bug,priority:high"
-```
 
-**GitLab:**
-```bash
+# GitLab
 glab issue update {iid} --repo group/project --add-label "bug,priority:high"
-# 或 API
-curl -s --request PUT \
-  --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  --header "Content-Type: application/json" \
-  --data '{"labels":["bug","priority:high"]}' \
-  "${GITLAB_BASE_URL}/api/v4/projects/{project_id}/issues/{iid}"
 ```
 
 **自动标签规则：**
+
 | 关键词 | 标签 |
 |--------|------|
 | bug / 错误 / 修复 | bug |
@@ -90,128 +115,194 @@ curl -s --request PUT \
 | question / 怎么 / 如何 | question |
 | 文档 / 文档 / 翻译 | documentation |
 
-#### 3.3 生成 AI 回复
-
-使用 `amp` 或 `claude-code` 生成回复：
+#### 5.3 AI 回复
 
 ```bash
 amp "分析这个 Issue，生成一条友好的回复：
 Title: {title}
 Description: {description}
 
-回复要包含：
-1. 问题摘要
-2. 下一步或问题
-3. 是否需要代码实现
-
+回复要包含：1. 问题摘要 2. 下一步或问题 3. 是否需要代码实现
 保持简洁专业，markdown 格式。"
 ```
 
-然后发布评论：
+发布评论：
 
-**GitHub:**
 ```bash
-gh issue comment create {number} --repo owner/repo --body "{回复内容}"
+# GitHub
+gh issue comment create {number} --repo owner/repo --body "{回复}"
+
+# GitLab
+glab issue note {iid} --repo group/project --message "{回复}"
 ```
 
-**GitLab:**
+#### 5.4 代码实现（如需要）
+
+**⚠️ 安全约束：**
+- 仅限项目目录内操作
+- 禁止删除 /tmp、$HOME 等外部文件
+- 临时文件使用 /tmp/auto-issue-*
+
+**执行流程：**
+
 ```bash
-glab issue note {iid} --repo group/project --message "{回复内容}"
-```
+# 1. 创建临时目录并克隆
+WORK_DIR="/tmp/auto-issue-$(date +%s)"
+mkdir -p "$WORK_DIR"
+git clone git@host:owner/repo.git "$WORK_DIR"
+cd "$WORK_DIR"
 
-#### 3.4 代码实现（如需要）
-
-判断 issue 是否需要代码实现。如果是：
-
-1. **克隆仓库**
-```bash
-git clone ${GIT_BASE_URL}/group/project.git
-# 例如:
-# https://gitlab.com/owner/repo.git
-# https://jihulab.com/owner/repo.git
-# https://git.yourcompany.com/owner/repo.git
-```
-
-2. **创建分支**
-```bash
+# 2. 创建分支
 git checkout -b fix/issue-{number}
-```
 
-3. **运行 coding agent**
-```bash
-amp "实现 Issue #{number} 的功能：
-Title: {title}
-Description: {description}
+# 3. 运行 coding agent
+amp "实现 Issue #{number}：{title} - {description}"
 
-要求：
-1. 实现所需功能
-2. 代码清晰可维护
-3. 包含测试（如适用）
-4. 更新文档（如需要）"
-```
+# 4. 更新 Changelog
+CHANGELOG="CHANGELOG.md"
+if [ -f "$CHANGELOG" ]; then
+  sed -i '' "1s/^/## [$(date +%Y-%m-%d)] - Issue #{number}: {title}\n\n- {description}\n\n/" "$CHANGELOG"
+else
+  echo "# Changelog\n\n## [$(date +%Y-%m-%d)] - Issue #{number}: {title}\n\n- {description}\n" > "$CHANGELOG"
+fi
 
-4. **提交并推送**
-```bash
-git add -A
+# 5. 提交推送
+git add path/to/file
 git commit -m "Fix issue #{number}: {title}"
 git push -u origin fix/issue-{number}
+
+# 6. 清理
+cd / && rm -rf "$WORK_DIR"
 ```
 
-5. **更新 Changelog**
+#### 5.5 创建 MR/PR
 
-每次代码改动必须更新对应项目的 changelog：
-- 如果项目没有 changelog，则新建 `CHANGELOG.md`
-- 如果已有 changelog，则追加新条目到顶部
-
-```markdown
-## [Unreleased] - {日期}
-
-### Added/Changed/Fixed
-- 描述本次改动内容
-```
-
-6. **创建 MR/PR**
-
-**注意：** 提交代码改动和 changelog 更新后，再创建 MR/PR。
-
-**GitHub:**
 ```bash
+# GitHub
 gh pr create --repo owner/repo \
   --title "Fix: {title}" \
   --body "解决 issue #{number}" \
   --base main
-```
 
-**GitLab:**
-```bash
+# GitLab
 glab mr create --repo group/project \
   --title "Fix: {title}" \
   --description "解决 issue #{number}" \
   --target-branch main
 ```
 
-7. **评论通知**
-```bash
-gh issue comment create {number} --repo owner/repo --body "已创建 PR: {url}"
-glab issue note {iid} --repo group/project --message "已创建 MR: {url}"
-```
+#### 5.6 标记与记录
 
-### Step 4: 记录状态
-
-记录已处理的 issue，避免重复处理：
 ```bash
+# 标记 agent 已处理（不关闭 issue）
+gh issue edit {number} --repo owner/repo --add-label "agent_processed"
+glab issue update {iid} --repo group/project --add-label "agent_processed"
+
+# 评论通知
+gh issue comment create {number} --repo owner/repo --body "已创建 PR: {url}，请审查"
+glab issue note {iid} --repo group/project --message "已创建 MR: {url}，请审查"
+
+# 记录已处理
 echo "{issue_id}:$(date +%s)" >> ~/.config/agents/skills/auto-issue-v2/processed.log
 ```
 
-## 命令示例
+### Step 6: 后续处理
+
+MR 合并后手动关闭 issue：
+
+```bash
+# GitHub
+gh issue close {number} --repo owner/repo
+
+# GitLab
+glab issue close {iid} --repo group/project
+```
+
+---
+
+## 模式二：扫描冲突
+
+触发词：`扫描冲突`、`check conflicts`
+
+### 流程概览
 
 ```
-用户: 处理 group/project 的 issues
-Agent:
-  1. 检查配置文件获取 base_url
-  2. 获取 issues
-  3. 对每个 issue：添加标签 → AI 回复 → 代码实现 → 创建 MR
+获取 open MRs/PRs
+    ↓
+检查冲突状态
+    ↓
+对有冲突的 MR
+    ├── 克隆仓库
+    ├── Rebase 解决冲突
+    ├── 强制推送
+    └── 验证结果
 ```
+
+### Step 1: 配置检查
+
+同模式一 Step 1。
+
+### Step 2: 获取有冲突的 MR/PR
+
+```bash
+# GitHub
+gh pr list --repo owner/repo --state open --json number,title,mergeableState
+
+# GitLab
+glab mr list --repo group/project --state opened
+```
+
+**冲突判断：**
+- GitHub: `mergeableState` 为 `dirty`
+- GitLab: `merge_status` 不为 `can_merge`
+
+### Step 3: 解决冲突
+
+```bash
+# 克隆仓库
+WORK_DIR="/tmp/pr-conflict-$(date +%s)"
+git clone git@host:owner/repo.git "$WORK_DIR"
+cd "$WORK_DIR"
+
+# 获取 MR/PR 分支
+gh pr checkout {number} --repo owner/repo
+# 或
+glab mr checkout {mr_iid} --repo group/project
+
+# Rebase 到 main
+git fetch origin main
+git rebase origin/main
+
+# ⚠️ 解决冲突后继续（重要：避免编辑器卡住）
+git add <resolved-files>
+GIT_EDITOR="cat" git rebase --continue
+
+# 强制推送
+git push --force-with-lease origin fix/issue-{number}
+
+# 清理
+cd / && rm -rf "$WORK_DIR"
+```
+
+> **注意**：`git rebase --continue` 会打开编辑器等待确认 commit message。使用 `GIT_EDITOR="cat"` 可以跳过编辑器直接继续。
+
+### Step 4: 验证
+
+```bash
+# GitHub
+gh pr view {number} --repo owner/repo --json mergeableState
+
+# GitLab
+glab mr view {mr_iid} --repo group/project
+```
+
+### Step 5: 记录
+
+```bash
+echo "conflict_resolved:{pr_number}:$(date +%s)" >> ~/.config/agents/skills/auto-issue-v2/processed.log
+```
+
+---
 
 ## 环境变量
 
@@ -219,19 +310,9 @@ Agent:
 |------|------|
 | `GITHUB_TOKEN` / `GH_TOKEN` | GitHub 访问令牌 |
 | `GITLAB_TOKEN` | GitLab 访问令牌 |
-| `GITLAB_BASE_URL` | GitLab 实例 URL（默认: https://gitlab.com）|
-| `GIT_BASE_URL` | Git clone 用的基础 URL（通常与 GITLAB_BASE_URL 相同）|
+| `GITLAB_BASE_URL` | GitLab 实例 URL |
 
 ## 认证方式
 
 1. `glab auth status` / `gh auth status` - CLI 已登录
 2. 环境变量 `GITLAB_TOKEN` / `GITHUB_TOKEN`
-3. 配置文件中的 token
-
-## 提示
-
-- 使用 `glab` / `gh` CLI 优先，API 作为 fallback
-- 代码生成推荐 `claude-code`，`amp` 需要交互模式
-- 私有仓库需要配置 SSH key 或使用 token
-- 处理前检查 issue 是否已处理（避免重复）
-- 自定义 GitLab 实例需确保 token 有对应权限
